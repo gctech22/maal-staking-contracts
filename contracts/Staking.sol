@@ -1,4 +1,5 @@
-pragma solidity ^0.8.7;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/utils/Address.sol";
 
@@ -6,7 +7,9 @@ contract Staking {
     using Address for address;
 
     // Parameters
-    uint128 public constant VALIDATOR_THRESHOLD = 1 ether;
+    uint128 public constant VALIDATOR_THRESHOLD = 350_000 ether;
+    // stake duration
+    uint256 public stakeDuration = 1095 days;
 
     // Properties
     address[] public _validators;
@@ -14,6 +17,7 @@ contract Staking {
     mapping(address => bool) public _addressToIsValidator;
     mapping(address => uint256) public _addressToStakedAmount;
     mapping(address => uint256) public _addressToValidatorIndex;
+    mapping(address => uint256) public _addressToStakeTime;
     uint256 public _stakedAmount;
     uint256 public _minimumNumValidators;
     uint256 public _maximumNumValidators;
@@ -30,6 +34,11 @@ contract Staking {
     // Modifiers
     modifier onlyEOA() {
         require(!msg.sender.isContract(), "Only EOA can call function");
+        _;
+    }
+
+    modifier lockEnded() {
+        require(block.timestamp >= _addressToStakeTime[msg.sender] + stakeDuration, "Error: Can't unstake before lock expires");
         _;
     }
 
@@ -99,7 +108,7 @@ contract Staking {
         _stake();
     }
 
-    function unstake() public onlyEOA onlyStaker {
+    function unstake() public onlyEOA onlyStaker lockEnded {
         _unstake();
     }
 
@@ -113,6 +122,7 @@ contract Staking {
     function _stake() private {
         _stakedAmount += msg.value;
         _addressToStakedAmount[msg.sender] += msg.value;
+        _addressToStakeTime[msg.sender] = block.timestamp;
 
         if (_canBecomeValidator(msg.sender)) {
             _appendToValidatorSet(msg.sender);
